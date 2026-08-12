@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>سیگنال‌یاب واقعی (بایننس)</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:Tahoma,Arial,sans-serif; }
+        body { background:#0b0e11; color:#d1d4dc; padding:15px; min-height:100vh; }
+        .container { max-width:1400px; margin:0 auto; }
+        .header { display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; flex-wrap:wrap; gap:8px; }
+        .header h1 { font-size:20px; color:#f0f0f0; }
+        .header .status { font-size:13px; color:#7b8a9b; }
+        .header .status .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-left:5px; }
+        .dot.green { background:#00c805; }
+        .dot.red { background:#f23645; }
+        .timeframes { display:flex; gap:5px; flex-wrap:wrap; margin-bottom:12px; background:#1e2329; padding:8px 12px; border-radius:8px; }
+        .timeframes button { background:transparent; border:1px solid #2b3139; color:#8b9aa8; padding:4px 12px; border-radius:4px; cursor:pointer; font-size:12px; }
+        .timeframes button.active { background:#2b3139; color:#f0f0f0; border-color:#f0b90b; }
+        .chart-container { background:#131a20; border-radius:12px; padding:10px; margin-bottom:15px; height:380px; display:flex; align-items:center; justify-content:center; flex-direction:column; }
+        .chart-container canvas { width:100% !important; height:100% !important; border-radius:6px; background:#0f141a; }
+        .panels { display:grid; grid-template-columns:1fr 1fr 1fr; gap:12px; margin-bottom:15px; }
+        .panel { background:#131a20; border-radius:10px; padding:14px; border:1px solid #1e2329; }
+        .panel h3 { font-size:13px; color:#8b9aa8; margin-bottom:10px; border-bottom:1px solid #1e2329; padding-bottom:6px; }
+        .panel .signal-item { background:#1e2329; padding:8px 10px; border-radius:6px; margin-bottom:6px; font-size:12px; border-right:3px solid #f0b90b; }
+        .panel .signal-item .symbol { font-weight:bold; color:#f0f0f0; }
+        .panel .signal-item .type { display:inline-block; padding:1px 8px; border-radius:4px; font-size:10px; margin-right:6px; }
+        .type.long { background:#00c80522; color:#00c805; }
+        .type.short { background:#f2364522; color:#f23645; }
+        .panel .condition { font-size:12px; color:#b7bdc6; padding:3px 0; }
+        .panel .condition .highlight { color:#f0b90b; }
+        .trade-btns { display:flex; gap:8px; margin-top:8px; }
+        .trade-btns button { flex:1; padding:8px; border:none; border-radius:6px; font-weight:bold; font-size:13px; cursor:pointer; }
+        .trade-btns .btn-long { background:#00c805; color:#fff; }
+        .trade-btns .btn-short { background:#f23645; color:#fff; }
+        .manual-signal { margin-top:10px; display:flex; gap:6px; flex-wrap:wrap; }
+        .manual-signal input { flex:1; padding:6px 10px; border-radius:6px; border:1px solid #2b3139; background:#1e2329; color:#d1d4dc; font-size:12px; min-width:80px; }
+        .manual-signal button { padding:6px 14px; border:none; border-radius:6px; background:#2b3139; color:#d1d4dc; cursor:pointer; font-size:12px; }
+        .history { background:#131a20; border-radius:10px; padding:14px; border:1px solid #1e2329; }
+        .history h3 { font-size:13px; color:#8b9aa8; margin-bottom:10px; border-bottom:1px solid #1e2329; padding-bottom:6px; }
+        .history-list { max-height:130px; overflow-y:auto; }
+        .history-list::-webkit-scrollbar { width:4px; }
+        .history-list::-webkit-scrollbar-track { background:#1e2329; }
+        .history-list::-webkit-scrollbar-thumb { background:#2b3139; border-radius:4px; }
+        .history-item { display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid #1a1f26; font-size:12px; flex-wrap:wrap; }
+        .history-item .h-time { color:#6a7a8b; font-size:11px; }
+        .history-item .h-symbol { font-weight:bold; color:#f0f0f0; }
+        @media (max-width:900px) { .panels { grid-template-columns:1fr; } .chart-container { height:260px; } }
+        @media (max-width:600px) { .timeframes button { font-size:10px; padding:3px 8px; } .header h1 { font-size:16px; } }
+        .error-box { color:#f23645; background:#1e2329; padding:15px; border-radius:8px; border:1px solid #f23645; text-align:center; font-size:13px; }
+        .retry-btn { margin-top:10px; padding:6px 16px; background:#f0b90b; color:#0b0e11; border:none; border-radius:4px; font-weight:bold; cursor:pointer; }
+        .source-badge { font-size:10px; color:#5a6a7b; margin-top:4px; text-align:center; }
+        .data-source { color:#f0b90b; font-weight:bold; }
+        .ai-chat { position:fixed; bottom:20px; right:20px; width:350px; max-width:90vw; background:#131a20; border:1px solid #2b3139; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,0.8); z-index:999; display:none; flex-direction:column; max-height:500px; overflow:hidden; }
+        .ai-chat.open { display:flex; }
+        .ai-chat-header { background:#1e2329; padding:10px 14px; border-bottom:1px solid #2b3139; display:flex; justify-content:space-between; align-items:center; cursor:pointer; }
+        .ai-chat-header h4 { color:#f0b90b; font-size:14px; }
+        .ai-chat-header button { background:none; border:none; color:#8b9aa8; font-size:18px; cursor:pointer; }
+        .ai-chat-body { padding:10px 14px; overflow-y:auto; flex:1; max-height:300px; min-height:150px; }
+        .ai-chat-body .msg { margin-bottom:8px; padding:8px 12px; border-radius:8px; font-size:13px; line-height:1.6; max-width:85%; }
+        .ai-chat-body .msg.user { background:#1e2329; color:#d1d4dc; margin-right:auto; border-left:3px solid #f0b90b; }
+        .ai-chat-body .msg.ai { background:#0f141a; color:#d1d4dc; margin-left:auto; border-right:3px solid #42a5f5; }
+        .ai-chat-body .msg.ai .label { font-size:10px; color:#42a5f5; display:block; margin-bottom:4px; }
+        .ai-chat-footer { border-top:1px solid #2b3139; padding:8px 10px; display:flex; gap:6px; }
+        .ai-chat-footer input { flex:1; padding:6px 10px; border-radius:6px; border:1px solid #2b3139; background:#1e2329; color:#d1d4dc; font-size:12px; }
+        .ai-chat-footer button { padding:6px 14px; border:none; border-radius:6px; background:#f0b90b; color:#0b0e11; font-weight:bold; cursor:pointer; font-size:12px; }
+        .ai-toggle-btn { position:fixed; bottom:20px; right:20px; background:#f0b90b; color:#0b0e11; border:none; border-radius:50%; width:56px; height:56px; font-size:28px; cursor:pointer; box-shadow:0 4px 16px rgba(240,185,11,0.4); z-index:998; transition:transform 0.2s; }
+        .ai-toggle-btn:hover { transform:scale(1.05); }
+        .ai-toggle-btn.hidden { display:none; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>📊 سیگنال‌یاب واقعی (بایننس)</h1>
+        <div>
+            <span class="status">
+                <span class="dot green" id="scanStatusDot"></span>
+                <span id="scanStatusText">در حال اسکن...</span>
+            </span>
+            <span style="font-size:12px;color:#5a6a7b;">🤖 تلگرام: <span id="tgStatus">متصل</span></span>
+        </div>
+    </div>
+    <div class="timeframes" id="timeframeButtons">
+        <button data-tf="1m">1m</button>
+        <button data-tf="5m">5m</button>
+        <button data-tf="15m" class="active">15m</button>
+        <button data-tf="30m">30m</button>
+        <button data-tf="1h">1h</button>
+        <button data-tf="4h">4h</button>
+        <button data-tf="1d">1d</button>
+    </div>
+    <div class="chart-container" id="chartContainer">
+        <div style="color:#7b8a9b;">⏳ در حال بارگذاری...</div>
+    </div>
+    <div class="panels">
+        <div class="panel">
+            <h3>🚦 سیگنال‌های ورود فعال</h3>
+            <div id="activeSignals"><div style="color:#6a7a8b;font-size:12px;">در انتظار سیگنال...</div></div>
+        </div>
+        <div class="panel">
+            <h3>📋 شرایط ورود به معامله</h3>
+            <div id="entryConditions"><div style="color:#6a7a8b;font-size:12px;">در حال بررسی...</div></div>
+        </div>
+        <div class="panel">
+            <h3>📈 معاملات (لانگ/شورت)</h3>
+            <div class="trade-btns">
+                <button class="btn-long" id="btnLong">✅ لانگ</button>
+                <button class="btn-short" id="btnShort">🔻 شورت</button>
+            </div>
+            <div class="manual-signal">
+                <input type="text" id="manualSymbol" placeholder="نماد" value="BTCUSDT">
+                <button id="manualBuy">خرید</button>
+                <button id="manualSell">فروش</button>
+            </div>
+        </div>
+    </div>
+    <div class="history">
+        <h3>📜 تاریخچه سیگنال‌ها</h3>
+        <div class="history-list" id="historyList"><div style="color:#6a7a8b;font-size:12px;">تاریخی ثبت نشده</div></div>
+    </div>
+</div>
+<button class="ai-toggle-btn" id="aiToggleBtn">🤖</button>
+<div class="ai-chat" id="aiChat">
+    <div class="ai-chat-header" id="aiChatHeader">
+        <h4>🤖 مشاور هوشمند بازار</h4>
+        <button id="aiCloseBtn">✕</button>
+    </div>
+    <div class="ai-chat-body" id="aiChatBody">
+        <div class="msg ai">
+            <span class="label">🤖 مشاور</span>
+            سلام! من مشاور هوشمند بازار هستم. می‌توانید درباره‌ی وضعیت بازار، سیگنال‌ها، یا هر سوالی که دارید بپرسید.
+        </div>
+    </div>
+    <div class="ai-chat-footer">
+        <input type="text" id="aiInput" placeholder="سوال خود را بپرسید...">
+        <button id="aiSendBtn">ارسال</button>
+    </div>
+</div>
+<script>
+    const CONFIG = {
+        telegramBotToken: '8989455592:AAGvC-ow7mvksnrsMaBIcfpHhjzJ7fSRymE',
+        telegramChatId: '5823510090',
+        scanInterval: 60000,
+        symbols: ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'SOLUSDT', 'XRPUSDT', 'ADAUSDT']
+    };
+    let currentSymbol = 'BTCUSDT';
+    let currentTF = '15m';
+    let scanTimer = null;
+    let history = JSON.parse(localStorage.getItem('tradeHistory') || '[]');
+    let isScanning = false;
+    let lastData = [];
+    let lastEMA50 = null;
+    let lastEMA200 = null;
+    let lastPrice = null;
+    let lastSignal = null;
+    let dataSource = 'بایننس';
+    async function fetchKlines(symbol, interval, limit = 200) {
+        const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        const data = await res.json();
+        if (!data || data.length === 0) throw new Error('داده خالی');
+        return data.map(c => ({ time: Math.floor(c[0] / 1000), open: parseFloat(c[1]), high: parseFloat(c[2]), low: parseFloat(c[3]), close: parseFloat(c[4]) }));
+    }
+    async function getCurrentPrice(symbol) {
+        const url = `https://api.binance.com/api/v3/ticker/price?symbol=${symbol}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        return parseFloat(data.price);
+    }
+    function calculateEMA(data, period) {
+        const ema = [];
+        const multiplier = 2 / (period + 1);
+        let sum = 0;
+        for (let i = 0; i < data.length; i++) {
+            if (i < period - 1) { sum += data[i].close; ema.push(null); }
+            else if (i === period - 1) { sum += data[i].close; ema.push(sum / period); }
+            else { ema.push((data[i].close - ema[i-1]) * multiplier + ema[i-1]); }
+        }
+        return ema;
+    }
+    function checkStrategy(klines1h, klines30m, klines15m) {
+        if (!klines1h?.length || !klines30m?.length || !klines15m?.length || klines1h.length < 50) return { signal: null, reason: 'داده کافی نیست' };
+        const ema50_1h = calculateEMA(klines1h, 50);
+        const ema200_1h = calculateEMA(klines1h, 200);
+        const ema50_30m = calculateEMA(klines30m, 50);
+        const ema200_30m = calculateEMA(klines30m, 200);
+        const ema50_15m = calculateEMA(klines15m, 50);
+        const last1h = klines1h.at(-1);
+        const last30m = klines30m.at(-1);
+        const last15m = klines15m.at(-1);
+        const b1 = last1h.close > ema50_1h.at(-1) && last1h.close > ema200_1h.at(-1);
+        const b2 = last30m.close > ema50_30m.at(-1) && last30m.close > ema200_30m.at(-1);
+        const pLong = last15m.low <= ema50_15m.at(-1) && last15m.close > ema50_15m.at(-1);
+        const s1 = last1h.close < ema50_1h.at(-1) && last1h.close < ema200_1h.at(-1);
+        const s2 = last30m.close < ema50_30m.at(-1) && last30m.close < ema200_30m.at(-1);
+        const pShort = last15m.high >= ema50_15m.at(-1) && last15m.close < ema50_15m.at(-1);
+        if (b1 && b2 && pLong) return { signal: 'long', reason: 'روند صعودی 1h/30m + پول‌بک به EMA50' };
+        if (s1 && s2 && pShort) return { signal: 'short', reason: 'روند نزولی 1h/30m + پول‌بک به EMA50' };
+        return { signal: null, reason: 'شرایط ورود محقق نشد' };
+    }
+    function drawChart(data, ema50, ema200) {
+        const container = document.getElementById('chartContainer');
+        container.innerHTML = `<canvas id="chartCanvas"></canvas><div class="source-badge">📡 منبع داده: <span class="data-source">${dataSource}</span></div>`;
+        const canvas = document.getElementById('chartCanvas');
+        const rect = container.getBoundingClientRect();
+        canvas.width = rect.width || window.innerWidth - 40;
+        canvas.height = (rect.height || 300) - 20;
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width, h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+        if (!data || data.length < 2) {
+            ctx.fillStyle = '#6a7a8b';
+            ctx.font = '14px Tahoma';
+            ctx.textAlign = 'center';
+            ctx.fillText('داده‌ای برای نمایش وجود ندارد', w/2, h/2);
+            return;
+        }
+        const allValues = data.flatMap(d => [d.high, d.low]);
+        const ema50Vals = ema50.filter(v => v !== null);
+        const ema200Vals = ema200.filter(v => v !== null);
+        const min = Math.min(...allValues, ...ema50Vals, ...ema200Vals);
+        const max = Math.max(...allValues, ...ema50Vals, ...ema200Vals);
+        const range = max - min || 1;
+        const pad = 20;
+        const candleWidth = Math.min((w - pad * 2) / data.length * 0.7, 8);
+        const xStep = (w - pad * 2) / data.length;
+        function getY(val) { return pad + (h - pad * 2) * (1 - (val - min) / range); }
+        for (let i = 0; i < data.length; i++) {
+            const c = data[i];
+            const x = pad + i * xStep + (xStep - candleWidth) / 2;
+            const yOpen = getY(c.open);
+            const yClose = getY(c.close);
+            const yHigh = getY(c.high);
+            const yLow = getY(c.low);
+            const isGreen = c.close >= c.open;
+            ctx.fillStyle = isGreen ? '#0f0' : '#f33';
+            ctx.strokeStyle = isGreen ? '#0f0' : '#f33';
+            ctx.lineWidth = 1;
+            const bodyTop = Math.min(yOpen, yClose);
+            const bodyHeight = Math.max(Math.abs(yClose - yOpen), 1);
+            ctx.fillRect(x, bodyTop, candleWidth, bodyHeight);
+            ctx.beginPath();
+            ctx.moveTo(x + candleWidth / 2, yHigh);
+            ctx.lineTo(x + candleWidth / 2, yLow);
+            ctx.stroke();
+        }
+        if (ema50.length > 10) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#42a5f5';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            let started = false;
+            for (let i = 0; i < ema50.length; i++) {
+                if (ema50[i] === null) { started = false; continue; }
+                const x = pad + i * xStep + candleWidth / 2;
+                const y = getY(ema50[i]);
+                if (!started) { ctx.moveTo(x, y); started = true; }
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        if (ema200.length > 10) {
+            ctx.beginPath();
+            ctx.strokeStyle = '#ff9800';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 4]);
+            let started = false;
+            for (let i = 0; i < ema200.length; i++) {
+                if (ema200[i] === null) { started = false; continue; }
+                const x = pad + i * xStep + candleWidth / 2;
+                const y = getY(ema200[i]);
+                if (!started) { ctx.moveTo(x, y); started = true; }
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        ctx.fillStyle = '#5a6a7b';
+        ctx.font = '10px Tahoma';
+        ctx.textAlign = 'center';
+        const step = Math.max(1, Math.floor(data.length / 10));
+        for (let i = 0; i < data.length; i += step) {
+            const x = pad + i * xStep + candleWidth / 2;
+            ctx.fillText(new Date(data[i].time * 1000).toLocaleTimeString('fa-IR'), x, h - 2);
+        }
+        ctx.textAlign = 'right';
+        ctx.fillText(max.toFixed(0), w - 4, pad + 12);
+        ctx.fillText(min.toFixed(0), w - 4, h - pad + 4);
+    }
+    async function sendTelegram(message) {
+        try {
+            const url = `https://api.telegram.org/bot${CONFIG.telegramBotToken}/sendMessage`;
+            const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ chat_id: CONFIG.telegramChatId, text: message, parse_mode: 'Markdown' }) });
+            return res.ok;
+        } catch (e) { return false; }
+    }
+    function addHistory(symbol, type, price) {
+        const now = new Date().toLocaleString('fa-IR');
+        history.unshift({ symbol, type, price, time: now });
+        if (history.length > 100) history.pop();
+        localStorage.setItem('tradeHistory', JSON.stringify(history));
+        renderHistory();
+    }
+    function renderHistory() {
+        const list = document.getElementById('historyList');
+        if (!history.length) { list.innerHTML = '<div style="color:#6a7a8b;font-size:12px;">تاریخی ثبت نشده</div>'; return; }
+        list.innerHTML = history.map(h => `
+            <div class="history-item">
+                <span><span class="h-symbol">${h.symbol}</span> <span class="type ${h.type}" style="font-size:10px;padding:1px 8px;border-radius:4px;background:${h.type==='long'?'#00c80522':'#f2364522'};color:${h.type==='long'?'#00c805':'#f23645'};">${h.type === 'long' ? 'لانگ' : 'شورت'}</span></span>
+                <span class="h-time">${h.time}</span>
+                <span>${h.price.toFixed(2)}</span>
+            </div>
+        `).join('');
+    }
+    function updateActiveSignals(symbol, type, price) {
+        const container = document.getElementById('activeSignals');
+        if (container.querySelector('.no-signal')) container.innerHTML = '';
+        const div = document.createElement('div');
+        div.className = 'signal-item';
+        div.innerHTML = `<span class="symbol">${symbol}</span><span class="type ${type}">${type === 'long' ? 'لانگ' : 'شورت'}</span><span style="float:left;color:#6a7a8b;">${price.toFixed(2)}</span>`;
+        container.prepend(div);
+        if (container.children.length > 10) container.removeChild(container.lastChild);
+    }
+    async function updateEntryConditions(symbol) {
+        try {
+            const [k1h, k30m, k15m] = await Promise.all([ fetchKlines(symbol, '1h', 200), fetchKlines(symbol, '30m', 200), fetchKlines(symbol, '15m', 200) ]);
+            const result = checkStrategy(k1h, k30m, k15m);
+            const container = document.getElementById('entryConditions');
+            if (result.signal) {
+                container.innerHTML = `
+                    <div class="condition">✅ <span class="highlight">${symbol}</span> ${result.signal === 'long' ? 'صعودی' : 'نزولی'}</div>
+                    <div class="condition">✅ پول‌بک به <span class="highlight">EMA50</span></div>
+                    <div class="condition" style="color:#00c805;margin-top:4px;">🔔 سیگنال <strong>${result.signal === 'long' ? 'لانگ' : 'شورت'}</strong></div>
+                `;
+                lastSignal = result.signal;
+            } else {
+                container.innerHTML = `<div class="condition" style="color:#6a7a8b;">⏳ ${result.reason}</div>`;
+                lastSignal = null;
+            }
+            const lastCandle = k15m.at(-1);
+            if (lastCandle) {
+                lastPrice = lastCandle.close;
+                const ema50_15m = calculateEMA(k15m, 50);
+                const ema200_15m = calculateEMA(k15m, 200);
+                lastEMA50 = ema50_15m.at(-1);
+                lastEMA200 = ema200_15m.at(-1);
+            }
+        } catch (e) { /* ignore */ }
+    }
+    async function scanAllSymbols() {
+        if (isScanning) return;
+        isScanning = true;
+        document.getElementById('scanStatusText').textContent = 'در حال اسکن...';
+        document.getElementById('scanStatusDot').className = 'dot green';
+        for (const symbol of CONFIG.symbols) {
+            try {
+                const [k1h, k30m, k15m] = await Promise.all([ fetchKlines(symbol, '1h', 200), fetchKlines(symbol, '30m', 200), fetchKlines(symbol, '15m', 200) ]);
+                const result = checkStrategy(k1h, k30m, k15m);
+                if (result.signal) {
+                    const price = k15m.at(-1).close;
+                    await sendTelegram(`📊 *سیگنال ${result.signal === 'long' ? 'لانگ 🟢' : 'شورت 🔴'}*\n▫️ نماد: *${symbol}*\n▫️ قیمت: *${price.toFixed(2)}*\n▫️ نوع: *اتومات*\n▫️ دلیل: ${result.reason}`);
+                    addHistory(symbol, result.signal, price);
+                    updateActiveSignals(symbol, result.signal, price);
+                }
+            } catch (e) { console.error(`خطا در ${symbol}:`, e); }
+        }
+        document.getElementById('scanStatusText').textContent = 'اسکن شد';
+        document.getElementById('scanStatusDot').className = 'dot green';
+        setTimeout(() => { document.getElementById('scanStatusText').textContent = 'در انتظار اسکن...'; }, 3000);
+        isScanning = false;
+    }
+    async function loadChart(symbol, tf) {
+        const container = document.getElementById('chartContainer');
+        container.innerHTML = '<div style="color:#7b8a9b;">⏳ دریافت داده از بایننس...</div>';
+        try {
+            const data = await fetchKlines(symbol, tf, 100);
+            if (!data || data.length === 0) {
+                container.innerHTML = `<div class="error-box">❌ داده‌ای دریافت نشد<button class="retry-btn" onclick="loadChart('${symbol}','${tf}')">تلاش مجدد</button></div>`;
+                return;
+            }
+            const ema50 = calculateEMA(data, 50);
+            const ema200 = calculateEMA(data, 200);
+            drawChart(data, ema50, ema200);
+            await updateEntryConditions(symbol);
+            lastData = data;
+        } catch (e) {
+            container.innerHTML = `<div class="error-box">❌ خطا: ${e.message}<button class="retry-btn" onclick="loadChart('${symbol}','${tf}')">تلاش مجدد</button></div>`;
+        }
+    }
+    async function sendManualSignal(type) {
+        const symbol = document.getElementById('manualSymbol').value.toUpperCase().trim() || 'BTCUSDT';
+        const price = await getCurrentPrice(symbol);
+        if (!price) { alert('❌ نماد نامعتبر یا خطا در دریافت قیمت'); return; }
+        await sendTelegram(`📊 *سیگنال ${type === 'long' ? 'لانگ 🟢' : 'شورت 🔴'}*\n▫️ نماد: *${symbol}*\n▫️ قیمت: *${price.toFixed(2)}*\n▫️ نوع: *دستی*`);
+        addHistory(symbol, type, price);
+        updateActiveSignals(symbol, type, price);
+        alert('✅ سیگنال ارسال شد!');
+    }
+    function getAIResponse(question) {
+        const q = question.toLowerCase().trim();
+        if (q.includes('وضعیت') || q.includes('چطور') || q.includes('حال') || q.includes('بازار')) {
+            if (lastPrice === null) return 'منتظر دریافت داده‌های بازار هستم. لطفاً چند لحظه صبر کنید.';
+            let trend = 'نامشخص';
+            let emaStatus = '';
+            if (lastEMA50 !== null && lastEMA200 !== null) {
+                if (lastPrice > lastEMA50 && lastPrice > lastEMA200) { trend = 'صعودی (قیمت بالای هر دو EMA)'; emaStatus = 'نشانه‌های صعودی قوی'; }
+                else if (lastPrice < lastEMA50 && lastPrice < lastEMA200) { trend = 'نزولی (قیمت پایین هر دو EMA)'; emaStatus = 'نشانه‌های نزولی قوی'; }
+                else if (lastPrice > lastEMA50 && lastPrice < lastEMA200) { trend = 'خنثی (قیمت بین EMA50 و EMA200)'; emaStatus = 'احتمال تغییر روند'; }
+                else { trend = 'خنثی'; emaStatus = 'در حال نوسان'; }
+            }
+            let signalStatus = lastSignal ? `✅ سیگنال **${lastSignal === 'long' ? 'لانگ' : 'شورت'}** فعال است` : '⏳ هیچ سیگنال فعالی وجود ندارد';
+            return `📊 **وضعیت فعلی بازار (${currentSymbol}):**\n🔹 قیمت لحظه‌ای: **${lastPrice?.toFixed(2) || 'در حال دریافت...'}**\n🔹 روند کلی: **${trend}**\n🔹 وضعیت EMA: ${emaStatus}\n🔹 سیگنال: ${signalStatus}\n🔹 منبع داده: ${dataSource}`;
+        }
+        if (q.includes('بخرم') || q.includes('بخر') || q.includes('وارد') || q.includes('معامله') || q.includes('سیگنال')) {
+            if (lastSignal === 'long') {
+                return `📈 **پیشنهاد من:** شرایط برای ورود **لانگ (خرید)** فراهم است.\n▫️ قیمت فعلی: ${lastPrice?.toFixed(2) || '...'}\n▫️ دلیل: روند صعودی در تایم‌فریم‌های بالاتر و پول‌بک به EMA50 در ۱۵ دقیقه.\n⚠️ حد ضرر را زیر EMA50 قرار دهید.`;
+            } else if (lastSignal === 'short') {
+                return `📉 **پیشنهاد من:** شرایط برای ورود **شورت (فروش)** فراهم است.\n▫️ قیمت فعلی: ${lastPrice?.toFixed(2) || '...'}\n▫️ دلیل: روند نزولی در تایم‌فریم‌های بالاتر و پول‌بک به EMA50 در ۱۵ دقیقه.\n⚠️ حد ضرر را بالای EMA50 قرار دهید.`;
+            } else {
+                return `⏳ **پیشنهاد من:** در حال حاضر شرایط ورود به معامله محقق نشده است.\n▫️ قیمت فعلی: ${lastPrice?.toFixed(2) || '...'}\n▫️ توصیه: صبر کنید تا سیگنال واضحی صادر شود.`;
+            }
+        }
+        if (q.includes('حد ضرر') || q.includes('حد سود') || q.includes('tp') || q.includes('sl')) {
+            if (lastPrice === null) return 'لطفاً منتظر دریافت داده‌ها باشید.';
+            let advice = '';
+            if (lastSignal === 'long') {
+                const sl = lastEMA50 || lastPrice * 0.99;
+                const tp = lastPrice * 1.02;
+                advice = `🔹 **حد ضرر (SL) لانگ:** ${sl.toFixed(2)} (زیر EMA50)\n🔹 **حد سود (TP) لانگ:** ${tp.toFixed(2)} (۲٪ بالای قیمت)`;
+            } else if (lastSignal === 'short') {
+                const sl = lastEMA50 || lastPrice * 1.01;
+                const tp = lastPrice * 0.98;
+                advice = `🔹 **حد ضرر (SL) شورت:** ${sl.toFixed(2)} (بالای EMA50)\n🔹 **حد سود (TP) شورت:** ${tp.toFixed(2)} (۲٪ پایین قیمت)`;
+            } else {
+                advice = '⏳ هیچ سیگنال فعالی وجود ندارد. لطفاً صبر کنید.';
+            }
+            return `📌 **حدود سود و ضرر پیشنهادی:**\n${advice}`;
+        }
+        return `🤔 سوال شما: "${question}"\n\nمن می‌توانم درباره‌ی این موضوعات به شما مشاوره بدهم:\n🔹 وضعیت کلی بازار (وضعیت، چطور است، بازار)\n🔹 خرید یا فروش (بخرم، بفروشم، سیگنال)\n🔹 حد ضرر و سود (حد ضرر، حد سود، TP، SL)\n\nلطفاً سوال خود را دقیق‌تر بپرسید.`;
+    }
+    const aiToggleBtn = document.getElementById('aiToggleBtn');
+    const aiChat = document.getElementById('aiChat');
+    const aiCloseBtn = document.getElementById('aiCloseBtn');
+    const aiChatHeader = document.getElementById('aiChatHeader');
+    const aiInput = document.getElementById('aiInput');
+    const aiSendBtn = document.getElementById('aiSendBtn');
+    const aiChatBody = document.getElementById('aiChatBody');
+    function toggleChat() { const isOpen = aiChat.classList.toggle('open'); aiToggleBtn.classList.toggle('hidden', isOpen); }
+    function addMessage(text, isUser = false) {
+        const div = document.createElement('div');
+        div.className = `msg ${isUser ? 'user' : 'ai'}`;
+        if (!isUser) { div.innerHTML = `<span class="label">🤖 مشاور</span>${text}`; } else { div.textContent = text; }
+        aiChatBody.appendChild(div);
+        aiChatBody.scrollTop = aiChatBody.scrollHeight;
+    }
+    function handleAIQuestion() {
+        const question = aiInput.value.trim();
+        if (!question) return;
+        addMessage(question, true);
+        aiInput.value = '';
+        const response = getAIResponse(question);
+        setTimeout(() => addMessage(response, false), 400);
+    }
+    aiToggleBtn.addEventListener('click', toggleChat);
+    aiCloseBtn.addEventListener('click', toggleChat);
+    aiChatHeader.addEventListener('click', (e) => { if (e.target.tagName !== 'BUTTON') toggleChat(); });
+    aiSendBtn.addEventListener('click', handleAIQuestion);
+    aiInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') handleAIQuestion(); });
+    document.addEventListener('DOMContentLoaded', () => {
+        document.querySelectorAll('.timeframes button').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.timeframes button').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentTF = this.dataset.tf;
+                loadChart(currentSymbol, currentTF);
+            });
+        });
+        document.getElementById('btnLong').addEventListener('click', () => sendManualSignal('long'));
+        document.getElementById('btnShort').addEventListener('click', () => sendManualSignal('short'));
+        document.getElementById('manualBuy').addEventListener('click', () => sendManualSignal('long'));
+        document.getElementById('manualSell').addEventListener('click', () => sendManualSignal('short'));
+        renderHistory();
+        loadChart(currentSymbol, currentTF);
+        setTimeout(() => {
+            scanAllSymbols();
+            scanTimer = setInterval(scanAllSymbols, CONFIG.scanInterval);
+            document.getElementById('scanStatusText').textContent = 'فعال';
+        }, 3000);
+    });
+    window.addEventListener('beforeunload', () => { if (scanTimer) clearInterval(scanTimer); });
+</script>
+</body>
+</html>
